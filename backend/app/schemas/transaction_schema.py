@@ -41,6 +41,13 @@ class TransactionAnalysisResponse(BaseModel):
 
 
 class TransactionRecord(TransactionAnalysisResponse):
+    sender_phone: str | None = None
+    receiver_phone: str | None = None
+    hour: int | None = None
+    transactions_last_10min: int | None = None
+    is_new_device: bool | None = None
+    sim_changed_recently: bool | None = None
+    agent_risk_level: str | None = None
     created_at: str
     alert_id: str | None = None
     alert_status: str | None = None

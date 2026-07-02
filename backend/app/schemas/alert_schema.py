@@ -17,8 +17,8 @@ class AlertRecord(BaseModel):
     status: AlertStatus
     created_at: str
     main_reason: str
+    resolved_at: str | None = None
 
 
 class AlertResolveResponse(AlertRecord):
     pass
-

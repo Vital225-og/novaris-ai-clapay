@@ -1,20 +1,27 @@
-"""Dashboard KPI calculations."""
+"""Dashboard KPI calculations from SQLite."""
 
 from __future__ import annotations
 
 from statistics import mean
 
+from sqlalchemy.orm import Session
+
+from app.db.session import SessionLocal
+from app.repositories.alert_repository import get_all_alerts
+from app.repositories.transaction_repository import get_all_transactions
 from app.schemas.dashboard_schema import DashboardKPIResponse
-from app.services.alert_service import alert_service
-from app.services.transaction_store import transaction_store
 
 
 class DashboardService:
-    """Aggregate in-memory metrics for the dashboard."""
+    """Aggregate KPI metrics from the database."""
 
-    def get_kpis(self) -> DashboardKPIResponse:
-        transactions = transaction_store.list_transactions()
-        alerts = alert_service.list_alerts()
+    def get_kpis(self, db: Session | None = None) -> DashboardKPIResponse:
+        if db is None:
+            with SessionLocal() as session:
+                return self.get_kpis(session)
+
+        transactions = get_all_transactions(db)
+        alerts = get_all_alerts(db)
 
         total_transactions = len(transactions)
         total_alerts = len(alerts)
@@ -22,9 +29,7 @@ class DashboardService:
         review_alerts = sum(1 for alert in alerts if alert.risk_level == "Élevé")
         allowed_transactions = sum(1 for tx in transactions if tx.decision == "ALLOW")
         blocked_transactions = sum(1 for tx in transactions if tx.decision == "TEMPORARY_BLOCK")
-        protected_amount = sum(
-            tx.amount for tx in transactions if tx.decision == "TEMPORARY_BLOCK"
-        )
+        protected_amount = sum(tx.amount for tx in transactions if tx.decision == "TEMPORARY_BLOCK")
         average_risk_score = round(mean(tx.risk_score for tx in transactions)) if transactions else 0
 
         return DashboardKPIResponse(

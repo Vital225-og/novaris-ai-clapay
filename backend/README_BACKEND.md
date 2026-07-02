@@ -1,13 +1,13 @@
 # Novaris AI Backend
 
-Backend FastAPI du Sprint 3 pour Novaris AI, solution anti-fraude Mobile Money.
+Backend FastAPI du Sprint 4 pour Novaris AI, solution anti-fraude Mobile Money.
 
-Le backend expose désormais :
+Le backend utilise maintenant SQLite via SQLAlchemy pour persister :
 
-- l analyse de transaction
-- un stockage mémoire des transactions de démonstration et des analyses courantes
-- un dashboard KPI
-- un système d alertes fraude
+- les transactions analysées
+- les scores de risque
+- les alertes fraude
+- les KPI du dashboard
 
 ## Installation
 
@@ -16,6 +16,16 @@ Depuis le dossier `backend/` :
 ```bash
 pip install -r requirements.txt
 ```
+
+## Configuration
+
+La base locale par defaut est :
+
+```text
+sqlite:///./novaris_ai.db
+```
+
+La variable d environnement `DATABASE_URL` permet de surcharger cette valeur.
 
 ## Lancement local
 
@@ -28,6 +38,16 @@ Swagger :
 ```text
 http://127.0.0.1:8000/docs
 ```
+
+Au demarrage, l application :
+
+- initialise les tables SQLite
+- charge les donnees de demo depuis `backend/app/data/demo_transactions.json`
+- charge les alertes de demo depuis `backend/app/data/demo_alerts.json`
+
+## Dependances
+
+- `sqlalchemy`
 
 ## Endpoints
 
@@ -51,24 +71,15 @@ http://127.0.0.1:8000/docs
 - `GET /api/v1/alerts/{alert_id}`
 - `POST /api/v1/alerts/{alert_id}/resolve`
 
-## Comportement du stockage
+## Comportement de persistance
 
-Le Sprint 3 utilise un stockage mémoire simple alimenté par :
+Quand `POST /api/v1/transactions/analyze` est appelé :
 
-- `backend/app/data/demo_transactions.json`
-- `backend/app/data/demo_alerts.json`
-
-Les transactions analysées pendant l exécution sont ajoutées au store mémoire.
-
-## Création automatique d alerte
-
-Lorsqu une transaction est analysée :
-
-- elle est ajoutée au `transaction_store`
-- si `risk_score >= 60`, une alerte est créée automatiquement
-- si `risk_score >= 80`, l alerte est critique et le statut initial est `OPEN`
-- si `60 <= risk_score <= 79`, l alerte est de niveau élevé et le statut initial est `IN_REVIEW`
-- si `risk_score < 60`, aucune alerte n est créée
+- la transaction est analysee par le `Risk Orchestrator`
+- la transaction est enregistree en base SQLite
+- le score de risque detaille est enregistre en base SQLite
+- une alerte est creee automatiquement si `risk_score >= 60`
+- le contrat JSON de la reponse reste identique
 
 Statuts d alerte :
 
@@ -84,7 +95,7 @@ Niveaux d alerte :
 
 ## Dashboard KPI
 
-Le dashboard agrège les données en mémoire pour retourner :
+Le dashboard lit directement les donnees SQLite pour retourner :
 
 - `total_transactions`
 - `total_alerts`
@@ -95,7 +106,7 @@ Le dashboard agrège les données en mémoire pour retourner :
 - `protected_amount`
 - `average_risk_score`
 
-### Exemple de réponse
+### Exemple de reponse
 
 ```json
 {
@@ -107,50 +118,6 @@ Le dashboard agrège les données en mémoire pour retourner :
   "blocked_transactions": 3,
   "protected_amount": 2450000,
   "average_risk_score": 64
-}
-```
-
-## Exemple de réponse transaction
-
-```json
-{
-  "transaction_id": "TX-001",
-  "customer_name": "Client Demo",
-  "amount": 450000,
-  "transaction_type": "withdrawal",
-  "agent_id": "AG-044",
-  "device_id": "DEV-NEW-991",
-  "location": "Abidjan",
-  "risk_score": 82,
-  "trust_score": 180,
-  "risk_level": "Critique",
-  "decision": "TEMPORARY_BLOCK",
-  "module_scores": {
-    "transaction_monitoring": 90,
-    "device_sim": 75,
-    "agent_fraud": 75,
-    "fraud_graph": 85
-  },
-  "reasons": [
-    "Montant très supérieur au comportement habituel",
-    "Fréquence élevée sur une courte période"
-  ],
-  "investigation_summary": "Cette transaction présente un risque critique. Un blocage temporaire est recommandé avant validation humaine."
-}
-```
-
-## Exemple de réponse alerte
-
-```json
-{
-  "alert_id": "ALT-001",
-  "transaction_id": "TX-001",
-  "risk_score": 92,
-  "risk_level": "Critique",
-  "decision": "TEMPORARY_BLOCK",
-  "status": "OPEN",
-  "created_at": "2026-07-02T10:00:00",
-  "main_reason": "Montant inhabituel + nouvel appareil"
 }
 ```
 
@@ -182,24 +149,24 @@ curl -X POST "http://127.0.0.1:8000/api/v1/transactions/analyze" \
 pytest
 ```
 
-## Notes sur `pytest` sous Windows
+## Note sur `pytest` sous Windows
 
-Les tests affichent correctement leur succès, mais dans cet environnement Windows le runner peut rester actif après l exécution. J ai vérifié les `TestClient`, les imports et les services mémoire, et je n ai pas trouvé de thread ou de processus applicatif restant actif. Si le phénomène persiste sur un autre poste, il s agit probablement d une particularité de l environnement Windows/Pytest et non d un blocage du backend.
+Les tests passent, mais dans cet environnement Windows le runner peut rester actif apres l affichage de `passed`. J ai verifie les `TestClient`, les imports, les services et la fermeture de l engine SQLAlchemy sans trouver de thread applicatif restant actif. Si le comportement persiste, il s agit probablement d une particularite de l environnement Pytest/Windows et non d un blocage du backend.
 
 ## Structure
 
-- `app/core`: configuration, constantes, exceptions
+- `app/db`: engine, sessions, initialisation et seed SQLite
+- `app/models`: ORM SQLAlchemy
+- `app/repositories`: acces donnees
+- `app/services`: scoring, alertes, dashboard et transaction store
+- `app/data`: donnees de demo JSON
 - `app/api/v1`: routes REST
-- `app/schemas`: schémas Pydantic
-- `app/services`: scoring, alertes, dashboard et stockage mémoire
-- `app/data`: jeux de démonstration JSON
-- `app/utils`: utilitaires
 - `tests`: tests pytest
 
-## Limites du Sprint 3
+## Limites restantes
 
-- pas de base de données
-- pas de modèle ML réel
+- pas de PostgreSQL
+- pas d Alembic
 - pas de worker
-- pas de persistance durable
-- pas d historique au-delà du stockage mémoire
+- pas de modele ML reel
+- pas de persistence distribuee
