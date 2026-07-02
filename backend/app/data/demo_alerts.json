@@ -1,0 +1,82 @@
+[
+  {
+    "alert_id": "ALT-001",
+    "transaction_id": "TX-018",
+    "risk_score": 61,
+    "risk_level": "Élevé",
+    "decision": "REVIEW",
+    "status": "OPEN",
+    "created_at": "2026-07-02T10:25:00",
+    "main_reason": "Montant supérieur au comportement habituel + fréquence élevée"
+  },
+  {
+    "alert_id": "ALT-002",
+    "transaction_id": "TX-019",
+    "risk_score": 64,
+    "risk_level": "Élevé",
+    "decision": "REVIEW",
+    "status": "OPEN",
+    "created_at": "2026-07-02T10:30:00",
+    "main_reason": "Montant supérieur au comportement habituel"
+  },
+  {
+    "alert_id": "ALT-003",
+    "transaction_id": "TX-020",
+    "risk_score": 67,
+    "risk_level": "Élevé",
+    "decision": "REVIEW",
+    "status": "OPEN",
+    "created_at": "2026-07-02T10:35:00",
+    "main_reason": "Montant supérieur au comportement habituel + retrait"
+  },
+  {
+    "alert_id": "ALT-004",
+    "transaction_id": "TX-021",
+    "risk_score": 71,
+    "risk_level": "Élevé",
+    "decision": "REVIEW",
+    "status": "OPEN",
+    "created_at": "2026-07-02T10:40:00",
+    "main_reason": "Identifiant appareil compatible avec un contexte sensible"
+  },
+  {
+    "alert_id": "ALT-005",
+    "transaction_id": "TX-022",
+    "risk_score": 74,
+    "risk_level": "Élevé",
+    "decision": "REVIEW",
+    "status": "OPEN",
+    "created_at": "2026-07-02T10:45:00",
+    "main_reason": "Montant supérieur au comportement habituel + retrait"
+  },
+  {
+    "alert_id": "ALT-006",
+    "transaction_id": "TX-023",
+    "risk_score": 86,
+    "risk_level": "Critique",
+    "decision": "TEMPORARY_BLOCK",
+    "status": "OPEN",
+    "created_at": "2026-07-02T10:50:00",
+    "main_reason": "Montant très supérieur au comportement habituel"
+  },
+  {
+    "alert_id": "ALT-007",
+    "transaction_id": "TX-024",
+    "risk_score": 90,
+    "risk_level": "Critique",
+    "decision": "TEMPORARY_BLOCK",
+    "status": "OPEN",
+    "created_at": "2026-07-02T10:55:00",
+    "main_reason": "Agent associé à un niveau de risque élevé"
+  },
+  {
+    "alert_id": "ALT-008",
+    "transaction_id": "TX-025",
+    "risk_score": 94,
+    "risk_level": "Critique",
+    "decision": "TEMPORARY_BLOCK",
+    "status": "OPEN",
+    "created_at": "2026-07-02T11:00:00",
+    "main_reason": "Montant très supérieur au comportement habituel + nouvel appareil"
+  }
+]

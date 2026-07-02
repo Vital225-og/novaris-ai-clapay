@@ -1,22 +1,13 @@
 # Novaris AI Backend
 
-Backend FastAPI du Sprint 2 pour Novaris AI, solution anti-fraude Mobile Money.
+Backend FastAPI du Sprint 3 pour Novaris AI, solution anti-fraude Mobile Money.
 
-Le backend expose un socle modulaire avec 4 services de scoring independants :
+Le backend expose désormais :
 
-- `TransactionMonitoringService`
-- `DeviceSimIntelligenceService`
-- `AgentFraudDetectionService`
-- `FraudGraphService`
-
-Le `RiskOrchestrator` coordonne ensuite ces modules pour produire :
-
-- un `risk_score`
-- un `trust_score`
-- un `risk_level`
-- une `decision`
-- une liste de `reasons`
-- un `investigation_summary`
+- l analyse de transaction
+- un stockage mémoire des transactions de démonstration et des analyses courantes
+- un dashboard KPI
+- un système d alertes fraude
 
 ## Installation
 
@@ -40,119 +31,90 @@ http://127.0.0.1:8000/docs
 
 ## Endpoints
 
-### GET `/api/v1/health`
+### Santé
 
-Réponse :
+- `GET /api/v1/health`
+
+### Transactions
+
+- `POST /api/v1/transactions/analyze`
+- `GET /api/v1/transactions`
+- `GET /api/v1/transactions/{transaction_id}`
+
+### Dashboard
+
+- `GET /api/v1/dashboard/kpis`
+
+### Alertes
+
+- `GET /api/v1/alerts`
+- `GET /api/v1/alerts/{alert_id}`
+- `POST /api/v1/alerts/{alert_id}/resolve`
+
+## Comportement du stockage
+
+Le Sprint 3 utilise un stockage mémoire simple alimenté par :
+
+- `backend/app/data/demo_transactions.json`
+- `backend/app/data/demo_alerts.json`
+
+Les transactions analysées pendant l exécution sont ajoutées au store mémoire.
+
+## Création automatique d alerte
+
+Lorsqu une transaction est analysée :
+
+- elle est ajoutée au `transaction_store`
+- si `risk_score >= 60`, une alerte est créée automatiquement
+- si `risk_score >= 80`, l alerte est critique et le statut initial est `OPEN`
+- si `60 <= risk_score <= 79`, l alerte est de niveau élevé et le statut initial est `IN_REVIEW`
+- si `risk_score < 60`, aucune alerte n est créée
+
+Statuts d alerte :
+
+- `OPEN`
+- `IN_REVIEW`
+- `RESOLVED`
+
+Niveaux d alerte :
+
+- `Modéré`
+- `Élevé`
+- `Critique`
+
+## Dashboard KPI
+
+Le dashboard agrège les données en mémoire pour retourner :
+
+- `total_transactions`
+- `total_alerts`
+- `critical_alerts`
+- `review_alerts`
+- `allowed_transactions`
+- `blocked_transactions`
+- `protected_amount`
+- `average_risk_score`
+
+### Exemple de réponse
 
 ```json
 {
-  "status": "ok",
-  "service": "Novaris AI Backend",
-  "version": "0.1.0"
+  "total_transactions": 25,
+  "total_alerts": 8,
+  "critical_alerts": 3,
+  "review_alerts": 5,
+  "allowed_transactions": 12,
+  "blocked_transactions": 3,
+  "protected_amount": 2450000,
+  "average_risk_score": 64
 }
 ```
 
-### POST `/api/v1/transactions/analyze`
-
-Analyse une transaction Mobile Money et retourne la réponse enrichie du moteur de risque.
-
-## Modules de scoring
-
-### 1. Transaction Monitoring
-
-Analyse :
-
-- `amount`
-- `hour`
-- `transactions_last_10min`
-- `transaction_type`
-
-Règles :
-
-- `amount >= 300000`: `+35`
-- `amount >= 100000`: `+20`
-- `transactions_last_10min >= 8`: `+30`
-- `transactions_last_10min >= 5`: `+20`
-- `hour` entre `0` et `5`: `+15`
-- `transaction_type = withdrawal`: `+10`
-
-### 2. Device/SIM Intelligence
-
-Analyse :
-
-- `is_new_device`
-- `sim_changed_recently`
-- `device_id`
-- `location`
-
-Règles :
-
-- `is_new_device = true`: `+35`
-- `sim_changed_recently = true`: `+40`
-- `location` vide ou inconnue: `+10`
-
-### 3. Agent Fraud Detection
-
-Analyse :
-
-- `agent_id`
-- `agent_risk_level`
-
-Règles :
-
-- `agent_risk_level = high`: `+75`
-- `agent_risk_level = medium`: `+45`
-- `agent_risk_level = low`: `+15`
-- `agent_id` vide: `+10`
-
-### 4. Fraud Graph Intelligence
-
-Analyse simulée :
-
-- `sender_phone`
-- `receiver_phone`
-- `agent_id`
-- `device_id`
-- `agent_risk_level`
-
-Règles :
-
-- `device_id` contenant `NEW` ou `RISK`: `+35`
-- `receiver_phone` présent: `+10`
-- `agent_id` présent et `agent_risk_level = high`: `+40`
-
-## Formule d agrégation
-
-Le score final est calculé avec une moyenne ponderee :
-
-```text
-risk_score =
-35% transaction_monitoring
-+ 25% device_sim
-+ 20% agent_fraud
-+ 20% fraud_graph
-```
-
-Le résultat est arrondi a l entier.
-
-## Decision Engine
-
-- `0` a `29`: `ALLOW` / `Faible`
-- `30` a `59`: `MONITOR` / `Modere`
-- `60` a `79`: `REVIEW` / `Eleve`
-- `80` a `100`: `TEMPORARY_BLOCK` / `Critique`
-
-## Trust Score
-
-```text
-trust_score = 1000 - (risk_score * 10)
-```
-
-## Exemple de réponse
+## Exemple de réponse transaction
 
 ```json
 {
-  "transaction_id": "TX-ABC123DEF456",
+  "transaction_id": "TX-001",
   "customer_name": "Client Demo",
   "amount": 450000,
   "transaction_type": "withdrawal",
@@ -170,10 +132,25 @@ trust_score = 1000 - (risk_score * 10)
     "fraud_graph": 85
   },
   "reasons": [
-    "Montant tres superieur au comportement habituel",
+    "Montant très supérieur au comportement habituel",
     "Fréquence élevée sur une courte période"
   ],
   "investigation_summary": "Cette transaction présente un risque critique. Un blocage temporaire est recommandé avant validation humaine."
+}
+```
+
+## Exemple de réponse alerte
+
+```json
+{
+  "alert_id": "ALT-001",
+  "transaction_id": "TX-001",
+  "risk_score": 92,
+  "risk_level": "Critique",
+  "decision": "TEMPORARY_BLOCK",
+  "status": "OPEN",
+  "created_at": "2026-07-02T10:00:00",
+  "main_reason": "Montant inhabituel + nouvel appareil"
 }
 ```
 
@@ -205,20 +182,25 @@ curl -X POST "http://127.0.0.1:8000/api/v1/transactions/analyze" \
 pytest
 ```
 
+## Notes sur `pytest` sous Windows
+
+Les tests affichent correctement leur succès, mais dans cet environnement Windows le runner peut rester actif après l exécution. Les causes les plus probables ont été limitées en utilisant des `TestClient` fermés explicitement dans les tests. Si le phénomène persiste dans un autre poste, il s agit probablement d une particularité d environnement et non d un blocage applicatif du backend.
+
 ## Structure
 
 - `app/core`: configuration, constantes, exceptions
 - `app/api/v1`: routes REST
-- `app/schemas`: schemas Pydantic
-- `app/services`: moteurs de scoring et orchestration
+- `app/schemas`: schémas Pydantic
+- `app/services`: scoring, alertes, dashboard et stockage mémoire
+- `app/data`: jeux de démonstration JSON
 - `app/utils`: utilitaires
 - `tests`: tests pytest
 
-## Limites du Sprint 2
+## Limites du Sprint 3
 
-- pas de base de donnees
-- pas de modele ML reel
-- pas de worker d arriere-plan
-- pas de persistence transactionnelle
-- pas de modele de graphe real temps
+- pas de base de données
+- pas de modèle ML réel
+- pas de worker
+- pas de persistance durable
+- pas d historique au-delà du stockage mémoire
 

@@ -38,3 +38,9 @@ class TransactionAnalysisResponse(BaseModel):
     module_scores: ModuleScores
     reasons: list[str]
     investigation_summary: str
+
+
+class TransactionRecord(TransactionAnalysisResponse):
+    created_at: str
+    alert_id: str | None = None
+    alert_status: str | None = None
