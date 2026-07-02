@@ -35,8 +35,10 @@ def test_very_risky_transaction_returns_temporary_block() -> None:
     body = response.json()
 
     assert body["decision"] == "TEMPORARY_BLOCK"
-    assert body["risk_score"] == 92
-    assert body["trust_score"] == 80
+    assert body["risk_level"] == "Critique"
+    assert body["risk_score"] == 82
+    assert body["trust_score"] == 180
+    assert body["trust_score"] == 1000 - body["risk_score"] * 10
 
 
 def test_response_contains_expected_fields() -> None:
@@ -50,5 +52,15 @@ def test_response_contains_expected_fields() -> None:
     assert "decision" in body
     assert "reasons" in body
     assert "investigation_summary" in body
+    assert "module_scores" in body
+    assert isinstance(body["module_scores"], dict)
+    assert set(body["module_scores"].keys()) == {
+        "transaction_monitoring",
+        "device_sim",
+        "agent_fraud",
+        "fraud_graph",
+    }
     assert isinstance(body["reasons"], list)
-    assert len(body["reasons"]) > 0
+    assert any("Montant" in reason for reason in body["reasons"])
+    assert any("appareil" in reason.lower() for reason in body["reasons"])
+    assert any("agent" in reason.lower() for reason in body["reasons"])

@@ -4,31 +4,58 @@ from app.core.exceptions import AnalysisError
 from app.schemas.risk_schema import ModuleScores
 from app.schemas.transaction_schema import TransactionAnalysisRequest, TransactionAnalysisResponse
 from app.services.ai_investigator import AIInvestigator
+from app.services.agent_fraud_detection import AgentFraudDetectionService
 from app.services.decision_engine import DecisionEngine
+from app.services.device_sim_intelligence import DeviceSimIntelligenceService
+from app.services.fraud_graph_service import FraudGraphService
+from app.services.transaction_monitoring import TransactionMonitoringService
 from app.services.trust_score_engine import TrustScoreEngine
 from app.utils.id_generator import generate_transaction_id
 
 
 class RiskOrchestrator:
-    """Orchestrate the Sprint 1 risk analysis flow."""
+    """Coordinate the modular risk scoring services."""
 
     def __init__(
         self,
         trust_score_engine: TrustScoreEngine | None = None,
         decision_engine: DecisionEngine | None = None,
         ai_investigator: AIInvestigator | None = None,
+        transaction_monitoring_service: TransactionMonitoringService | None = None,
+        device_sim_intelligence_service: DeviceSimIntelligenceService | None = None,
+        agent_fraud_detection_service: AgentFraudDetectionService | None = None,
+        fraud_graph_service: FraudGraphService | None = None,
     ) -> None:
         self.trust_score_engine = trust_score_engine or TrustScoreEngine()
         self.decision_engine = decision_engine or DecisionEngine()
         self.ai_investigator = ai_investigator or AIInvestigator()
+        self.transaction_monitoring_service = transaction_monitoring_service or TransactionMonitoringService()
+        self.device_sim_intelligence_service = device_sim_intelligence_service or DeviceSimIntelligenceService()
+        self.agent_fraud_detection_service = agent_fraud_detection_service or AgentFraudDetectionService()
+        self.fraud_graph_service = fraud_graph_service or FraudGraphService()
 
     def analyze(self, transaction: TransactionAnalysisRequest) -> TransactionAnalysisResponse:
         try:
-            risk_score = self._calculate_risk_score(transaction)
+            transaction_monitoring = self.transaction_monitoring_service.analyze(transaction)
+            device_sim = self.device_sim_intelligence_service.analyze(transaction)
+            agent_fraud = self.agent_fraud_detection_service.analyze(transaction)
+            fraud_graph = self.fraud_graph_service.analyze(transaction)
+
+            module_scores = ModuleScores(
+                transaction_monitoring=transaction_monitoring.score,
+                device_sim=device_sim.score,
+                agent_fraud=agent_fraud.score,
+                fraud_graph=fraud_graph.score,
+            )
+            reasons = self._aggregate_reasons(
+                transaction_monitoring.reasons,
+                device_sim.reasons,
+                agent_fraud.reasons,
+                fraud_graph.reasons,
+            )
+            risk_score = self._calculate_risk_score(module_scores)
             trust_score = self.trust_score_engine.calculate(risk_score)
             decision, risk_level = self.decision_engine.decide(risk_score)
-            module_scores = self._calculate_module_scores(transaction)
-            reasons = self._build_reasons(transaction)
             investigation_summary = self.ai_investigator.summarize(risk_level, decision, reasons)
         except Exception as exc:  # pragma: no cover - defensive guard
             raise AnalysisError("Unable to analyze transaction") from exc
@@ -50,70 +77,23 @@ class RiskOrchestrator:
             investigation_summary=investigation_summary,
         )
 
-    def _calculate_risk_score(self, transaction: TransactionAnalysisRequest) -> int:
-        score = 0
-        if transaction.amount >= 300000:
-            score += 35
-        elif transaction.amount >= 100000:
-            score += 20
-
-        if transaction.transactions_last_10min >= 5:
-            score += 20
-        elif transaction.transactions_last_10min >= 3:
-            score += 10
-
-        if 0 <= transaction.hour <= 5:
-            score += 8
-
-        if transaction.is_new_device:
-            score += 12
-
-        if transaction.sim_changed_recently:
-            score += 10
-
-        if transaction.agent_risk_level == "high":
-            score += 7
-        elif transaction.agent_risk_level == "medium":
-            score += 4
-
-        return min(100, score)
-
-    def _calculate_module_scores(self, transaction: TransactionAnalysisRequest) -> ModuleScores:
-        transaction_monitoring = 0
-        transaction_monitoring += 50 if transaction.amount >= 300000 else 20 if transaction.amount >= 100000 else 5
-        transaction_monitoring += 25 if transaction.transactions_last_10min >= 5 else 10 if transaction.transactions_last_10min >= 3 else 0
-        transaction_monitoring += 15 if 0 <= transaction.hour <= 5 else 0
-
-        device_sim = 50 if transaction.is_new_device else 20
-        device_sim += 35 if transaction.sim_changed_recently else 5
-
-        agent_fraud = 75 if transaction.agent_risk_level == "high" else 45 if transaction.agent_risk_level == "medium" else 20
-
-        fraud_graph = 55
-        fraud_graph += 15 if transaction.amount >= 300000 else 5
-        fraud_graph += 8 if transaction.transactions_last_10min >= 5 else 0
-        fraud_graph += 5 if transaction.is_new_device else 0
-        fraud_graph += 5 if transaction.agent_risk_level == "high" else 0
-
-        return ModuleScores(
-            transaction_monitoring=min(100, transaction_monitoring),
-            device_sim=min(100, device_sim),
-            agent_fraud=min(100, agent_fraud),
-            fraud_graph=min(100, fraud_graph),
+    def _calculate_risk_score(self, module_scores: ModuleScores) -> int:
+        weighted_score = (
+            0.35 * module_scores.transaction_monitoring
+            + 0.25 * module_scores.device_sim
+            + 0.20 * module_scores.agent_fraud
+            + 0.20 * module_scores.fraud_graph
         )
+        return max(0, min(100, round(weighted_score)))
 
-    def _build_reasons(self, transaction: TransactionAnalysisRequest) -> list[str]:
-        reasons: list[str] = []
+    def _aggregate_reasons(self, *reason_groups: list[str]) -> list[str]:
+        aggregated: list[str] = []
+        seen: set[str] = set()
 
-        if transaction.amount >= 300000:
-            reasons.append("Montant très supérieur au comportement habituel")
-        if transaction.transactions_last_10min >= 5:
-            reasons.append("Fréquence élevée sur une courte période")
-        if transaction.is_new_device:
-            reasons.append("Nouvel appareil détecté")
-        if transaction.sim_changed_recently:
-            reasons.append("SIM changée récemment")
-        if transaction.agent_risk_level == "high":
-            reasons.append("Agent associé à un niveau de risque élevé")
+        for group in reason_groups:
+            for reason in group:
+                if reason not in seen:
+                    seen.add(reason)
+                    aggregated.append(reason)
 
-        return reasons or ["Aucun signal de fraude critique détecté"]
+        return aggregated or ["Aucun signal de fraude critique détecté"]

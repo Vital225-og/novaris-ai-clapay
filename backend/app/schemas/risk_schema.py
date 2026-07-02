@@ -3,6 +3,11 @@
 from pydantic import BaseModel, Field
 
 
+class ScoreResult(BaseModel):
+    score: int = Field(ge=0, le=100)
+    reasons: list[str]
+
+
 class ModuleScores(BaseModel):
     transaction_monitoring: int = Field(ge=0, le=100)
     device_sim: int = Field(ge=0, le=100)
@@ -18,4 +23,3 @@ class RiskAnalysis(BaseModel):
     module_scores: ModuleScores
     reasons: list[str]
     investigation_summary: str
-
