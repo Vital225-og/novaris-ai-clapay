@@ -184,7 +184,7 @@ pytest
 
 ## Notes sur `pytest` sous Windows
 
-Les tests affichent correctement leur succès, mais dans cet environnement Windows le runner peut rester actif après l exécution. Les causes les plus probables ont été limitées en utilisant des `TestClient` fermés explicitement dans les tests. Si le phénomène persiste dans un autre poste, il s agit probablement d une particularité d environnement et non d un blocage applicatif du backend.
+Les tests affichent correctement leur succès, mais dans cet environnement Windows le runner peut rester actif après l exécution. J ai vérifié les `TestClient`, les imports et les services mémoire, et je n ai pas trouvé de thread ou de processus applicatif restant actif. Si le phénomène persiste sur un autre poste, il s agit probablement d une particularité de l environnement Windows/Pytest et non d un blocage du backend.
 
 ## Structure
 
@@ -203,4 +203,3 @@ Les tests affichent correctement leur succès, mais dans cet environnement Windo
 - pas de worker
 - pas de persistance durable
 - pas d historique au-delà du stockage mémoire
-
